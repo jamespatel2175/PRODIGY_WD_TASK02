@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Stopwatch</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;700;800&family=Syne+Mono&display=swap');
+
+:root{
+  --bg:#07111f;
+  --bg2:#0f172a;
+  --glass:rgba(255,255,255,0.08);
+  --glass-strong:rgba(255,255,255,0.12);
+  --border:rgba(255,255,255,0.12);
+  --text:#ffffff;
+  --text-soft:#cbd5e1;
+  --text-muted:#64748b;
+  --primary:#00e08f;
+  --primary-dark:#00b873;
+  --danger:#ff5b5b;
+  --danger-dark:#e53939;
+  --blur:24px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box;}
+
+body{
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  font-family:'Syne',sans-serif;
+  background:
+    radial-gradient(circle at top left,#183153 0%,transparent 35%),
+    radial-gradient(circle at bottom right,#10243f 0%,transparent 35%),
+    linear-gradient(135deg,var(--bg),var(--bg2));
+  padding:24px;
+  position:relative;
+  overflow:hidden;
+}
+
+body::before,body::after{
+  content:'';
+  position:absolute;
+  border-radius:50%;
+  filter:blur(90px);
+  z-index:0;
+}
+
+body::before{
+  width:260px;height:260px;
+  background:#00e08f55;
+  top:-80px;left:-80px;
+}
+
+body::after{
+  width:280px;height:280px;
+  background:#2563eb44;
+  bottom:-100px;right:-80px;
+}
+
+#sw-root{
+  width:100%;
+  max-width:520px;
+  position:relative;
+  z-index:2;
+  background:var(--glass);
+  border:1px solid var(--border);
+  backdrop-filter:blur(var(--blur));
+  -webkit-backdrop-filter:blur(var(--blur));
+  border-radius:34px;
+  padding:34px 28px;
+  box-shadow:0 8px 32px rgba(0,0,0,0.35),inset 0 1px 1px rgba(255,255,255,0.08);
+  overflow:hidden;
+}
+
+#sw-root::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.12),transparent 30%);
+  pointer-events:none;
+}
+
+/* Status bar */
+.status-bar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:24px;
+}
+
+.status-chip{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:999px;
+  padding:6px 14px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  transition:all .3s;
+}
+
+.status-chip.running{
+  background:rgba(0,224,143,0.1);
+  border-color:rgba(0,224,143,0.22);
+  color:#7fffd0;
+}
+
+.status-chip.paused{
+  background:rgba(255,91,91,0.08);
+  border-color:rgba(255,91,91,0.2);
+  color:#ff9898;
+}
+
+.dot{
+  width:7px;height:7px;
+  border-radius:50%;
+  background:var(--text-muted);
+  transition:background .3s;
+}
+
+.status-chip.running .dot{
+  background:#00e08f;
+  animation:blink 1s ease-in-out infinite;
+}
+
+.status-chip.paused .dot{
+  background:#ff5b5b;
+}
+
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+.lap-live-badge{
+  font-size:12px;
+  font-weight:700;
+  color:var(--text-muted);
+  letter-spacing:.06em;
+  transition:color .3s;
+}
+
+.lap-live-badge.active{
+  color:#7fffd0;
+}
+
+/* Display */
+.sw-label{
+  text-align:center;
+  color:var(--text-muted);
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.28em;
+  text-transform:uppercase;
+  margin-bottom:10px;
+}
+
+#display-wrap{text-align:center;margin-bottom:24px;}
+
+#time-display{
+  font-family:'Syne Mono',monospace;
+  font-size:clamp(60px,13vw,88px);
+  color:var(--text);
+  line-height:1;
+  letter-spacing:-4px;
+  text-shadow:0 0 12px rgba(255,255,255,0.08),0 0 24px rgba(0,224,143,0.12);
+  transition:color .2s;
+}
+
+#ms-display{
+  margin-top:10px;
+  font-family:'Syne Mono',monospace;
+  font-size:24px;
+  letter-spacing:.12em;
+  color:var(--text-soft);
+}
+
+/* Ring */
+.ring-wrap{
+  display:flex;
+  justify-content:center;
+  margin-bottom:28px;
+}
+
+#ring-svg{transform:rotate(-90deg);}
+
+#ring-bg{stroke:rgba(255,255,255,0.07);}
+
+#ring-fg{
+  stroke:url(#ringGrad);
+  stroke-linecap:round;
+  stroke-dasharray:314;
+  stroke-dashoffset:314;
+  transition:stroke-dashoffset .06s linear;
+  filter:drop-filter(0 0 6px #00e08f);
+}
+
+/* Progress bar */
+#progress-track{
+  width:100%;
+  height:6px;
+  border-radius:999px;
+  background:rgba(255,255,255,0.06);
+  overflow:hidden;
+  margin-bottom:30px;
+}
+
+#progress-bar{
+  height:100%;
+  width:0%;
+  border-radius:999px;
+  background:linear-gradient(90deg,#00e08f,#4dffbc,#00e08f);
+  box-shadow:0 0 10px #00e08f,0 0 24px rgba(0,224,143,0.55);
+  transition:width .04s linear;
+}
+
+/* Buttons */
+.btn-row{
+  display:flex;
+  gap:12px;
+  justify-content:center;
+  flex-wrap:wrap;
+  margin-bottom:30px;
+}
+
+.btn{
+  height:52px;
+  min-width:120px;
+  border:none;
+  outline:none;
+  border-radius:16px;
+  font-family:'Syne',sans-serif;
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  cursor:pointer;
+  color:white;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  transition:transform .18s ease,box-shadow .25s ease,background .25s ease,opacity .2s;
+}
+
+.btn:hover{transform:translateY(-2px);}
+.btn:active{transform:scale(.96);}
+.btn:disabled{opacity:.3;cursor:not-allowed;transform:none !important;}
+
+.btn-primary{
+  background:linear-gradient(135deg,var(--primary),var(--primary-dark));
+  box-shadow:0 10px 24px rgba(0,224,143,0.35);
+}
+.btn-primary:hover{box-shadow:0 14px 34px rgba(0,224,143,0.5);}
+
+.btn-danger{
+  background:linear-gradient(135deg,var(--danger),var(--danger-dark));
+  box-shadow:0 10px 24px rgba(255,91,91,0.35);
+}
+.btn-danger:hover{box-shadow:0 14px 34px rgba(255,91,91,0.48);}
+
+.btn-ghost{
+  background:var(--glass-strong);
+  border:1px solid rgba(255,255,255,0.08);
+  backdrop-filter:blur(10px);
+  color:var(--text);
+  min-width:auto;
+  padding:0 20px;
+}
+.btn-ghost:hover{background:rgba(255,255,255,0.14);}
+
+/* Stats */
+.stats-row{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+  margin-bottom:28px;
+}
+
+.stat-cell{
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:18px;
+  padding:14px 10px;
+  text-align:center;
+}
+
+.stat-label{
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--text-muted);
+  margin-bottom:6px;
+}
+
+.stat-val{
+  font-family:'Syne Mono',monospace;
+  font-size:14px;
+  font-weight:400;
+  color:var(--text);
+}
+
+.stat-val.highlight{color:#00e08f;}
+
+/* Lap section */
+#lap-section{
+  border-top:1px solid rgba(255,255,255,0.08);
+  padding-top:24px;
+}
+
+.lap-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:16px;
+}
+
+.lap-count-badge{
+  background:rgba(0,224,143,0.12);
+  border:1px solid rgba(0,224,143,0.18);
+  color:#7fffd0;
+  padding:5px 14px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.08em;
+}
+
+#lap-list{
+  list-style:none;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  max-height:240px;
+  overflow-y:auto;
+  padding-right:4px;
+}
+
+#lap-list::-webkit-scrollbar{width:4px;}
+#lap-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.16);border-radius:999px;}
+
+.lap-item{
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.08);
+  backdrop-filter:blur(14px);
+  border-radius:16px;
+  padding:13px 16px;
+  display:grid;
+  grid-template-columns:52px 1fr 1fr auto;
+  align-items:center;
+  gap:8px;
+  font-family:'Syne Mono',monospace;
+  animation:fadeUp .22s ease;
+}
+
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(-8px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
+.lap-item.best{
+  background:rgba(0,224,143,0.1);
+  border-color:rgba(0,224,143,0.25);
+}
+
+.lap-item.worst{
+  background:rgba(255,91,91,0.08);
+  border-color:rgba(255,91,91,0.22);
+}
+
+.lap-num{color:var(--text-muted);font-size:11px;}
+.lap-split{color:var(--text-soft);font-size:12px;}
+.lap-time{color:white;font-size:14px;font-weight:700;}
+
+.lap-badge{
+  padding:3px 9px;
+  border-radius:999px;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.08em;
+  font-family:'Syne',sans-serif;
+}
+.lap-badge.b{background:#00e08f;color:#fff;}
+.lap-badge.w{background:#ff5b5b;color:#fff;}
+
+.empty-laps{
+  text-align:center;
+  color:var(--text-muted);
+  padding:28px 0;
+  font-size:14px;
+}
+</style>
+</head>
+<body>
+
+<div id="sw-root">
+
+  <!-- Status bar -->
+  <div class="status-bar">
+    <div class="status-chip" id="status-chip">
+      <span class="dot"></span>
+      <span id="status-txt">Ready</span>
+    </div>
+    <span class="lap-live-badge" id="lap-live"></span>
+  </div>
+
+  <!-- Time display -->
+  <p class="sw-label">Stopwatch</p>
+  <div id="display-wrap">
+    <div id="time-display">00:00</div>
+    <div id="ms-display">.000</div>
+  </div>
+
+  <!-- Arc ring -->
+  <div class="ring-wrap">
+    <svg id="ring-svg" width="110" height="110" viewBox="0 0 110 110">
+      <defs>
+        <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#00e08f"/>
+          <stop offset="100%" stop-color="#4dffbc"/>
+        </linearGradient>
+      </defs>
+      <circle id="ring-bg" cx="55" cy="55" r="50" fill="none" stroke-width="5"/>
+      <circle id="ring-fg" cx="55" cy="55" r="50" fill="none" stroke-width="5"/>
+    </svg>
+  </div>
+
+  <!-- Progress bar -->
+  <div id="progress-track">
+    <div id="progress-bar"></div>
+  </div>
+
+  <!-- Controls -->
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-main" onclick="swToggle()">
+      &#9654; Start
+    </button>
+    <button class="btn btn-ghost" id="btn-lap" onclick="swLap()" disabled>
+      &#9873; Lap
+    </button>
+    <button class="btn btn-ghost" id="btn-reset" onclick="swReset()" disabled>
+      &#8635; Reset
+    </button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-cell">
+      <div class="stat-label">Best lap</div>
+      <div class="stat-val highlight" id="st-best">—</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Total laps</div>
+      <div class="stat-val" id="st-laps">0</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">Avg lap</div>
+      <div class="stat-val" id="st-avg">—</div>
+    </div>
+  </div>
+
+  <!-- Lap history -->
+  <div id="lap-section">
+    <div class="lap-header">
+      <p class="sw-label" style="margin:0">Lap history</p>
+      <span class="lap-count-badge" id="lap-count">0 laps</span>
+    </div>
+    <ul id="lap-list">
+      <li class="empty-laps">No laps recorded yet</li>
+    </ul>
+  </div>
+
+</div>
+
+<script>
+  let running = false, startTs = 0, elapsed = 0;
+  let lapBase = 0, laps = [], raf = null;
+
+  const $ = id => document.getElementById(id);
+  const pad = (n, z = 2) => String(Math.floor(n)).padStart(z, '0');
+  const CIRCUM = 2 * Math.PI * 50; // r=50
+
+  function fmt(ms) {
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    const cs = Math.floor(ms % 1000);
+    return { main: `${pad(m)}:${pad(s)}`, ms: `.${pad(cs, 3)}` };
+  }
+
+  function fmtShort(ms) {
+    const m = Math.floor(ms / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    const cs = Math.floor(ms % 1000);
+    return `${pad(m)}:${pad(s)}.${pad(cs, 3)}`;
+  }
+
+  function render(ms) {
+    const { main, ms: m } = fmt(ms);
+    $('time-display').textContent = main;
+    $('ms-display').textContent = m;
+    const pct = (ms % 60000) / 60000;
+    $('progress-bar').style.width = (pct * 100).toFixed(2) + '%';
+    $('ring-fg').style.strokeDashoffset = (CIRCUM - pct * CIRCUM).toFixed(2);
+  }
+
+  function loop() {
+    if (!running) return;
+    elapsed = Date.now() - startTs;
+    render(elapsed);
+    raf = requestAnimationFrame(loop);
+  }
+
+  function setStatus(txt, mode) {
+    $('status-txt').textContent = txt;
+    const chip = $('status-chip');
+    chip.className = 'status-chip' + (mode ? ' ' + mode : '');
+  }
+
+  function swToggle() {
+    if (!running) {
+      running = true;
+      startTs = Date.now() - elapsed;
+      if (!lapBase) lapBase = startTs;
+      $('btn-main').className = 'btn btn-danger';
+      $('btn-main').innerHTML = '&#9646;&#9646; Pause';
+      $('btn-lap').disabled = false;
+      $('btn-reset').disabled = true;
+      setStatus('Running', 'running');
+      loop();
+    } else {
+      running = false;
+      cancelAnimationFrame(raf);
+      $('btn-main').className = 'btn btn-primary';
+      $('btn-main').innerHTML = '&#9654; Resume';
+      $('btn-lap').disabled = true;
+      $('btn-reset').disabled = false;
+      setStatus('Paused', 'paused');
+    }
+  }
+
+  function swReset() {
+    running = false;
+    cancelAnimationFrame(raf);
+    elapsed = 0; lapBase = 0; laps = [];
+    render(0);
+    $('btn-main').className = 'btn btn-primary';
+    $('btn-main').innerHTML = '&#9654; Start';
+    $('btn-lap').disabled = true;
+    $('btn-reset').disabled = true;
+    $('lap-live').textContent = '';
+    $('lap-live').className = 'lap-live-badge';
+    setStatus('Ready', '');
+    updateStats();
+    renderLaps();
+  }
+
+  function swLap() {
+    if (!running) return;
+    const now = Date.now();
+    const split = now - lapBase;
+    lapBase = now;
+    laps.push({ n: laps.length + 1, total: elapsed, split });
+    const ll = $('lap-live');
+    ll.textContent = 'Lap ' + laps.length;
+    ll.className = 'lap-live-badge active';
+    updateStats();
+    renderLaps();
+  }
+
+  function updateStats() {
+    const n = laps.length;
+    $('st-laps').textContent = n;
+    if (n === 0) { $('st-best').textContent = '—'; $('st-avg').textContent = '—'; return; }
+    const splits = laps.map(l => l.split);
+    $('st-best').textContent = fmtShort(Math.min(...splits));
+    $('st-avg').textContent = fmtShort(splits.reduce((a, b) => a + b, 0) / n);
+  }
+
+  function renderLaps() {
+    const list = $('lap-list');
+    const n = laps.length;
+    $('lap-count').textContent = n + (n === 1 ? ' lap' : ' laps');
+    if (n === 0) { list.innerHTML = '<li class="empty-laps">No laps recorded yet</li>'; return; }
+    const splits = laps.map(l => l.split);
+    const minS = Math.min(...splits), maxS = Math.max(...splits);
+    list.innerHTML = [...laps].reverse().map(lap => {
+      let cls = '', badge = '';
+      if (n > 1) {
+        if (lap.split === minS) { cls = 'best'; badge = '<span class="lap-badge b">Best</span>'; }
+        else if (lap.split === maxS) { cls = 'worst'; badge = '<span class="lap-badge w">Slow</span>'; }
+      }
+      return `<li class="lap-item ${cls}">
+        <span class="lap-num">Lap ${lap.n}</span>
+        <span class="lap-split">${fmtShort(lap.split)}</span>
+        <span class="lap-time">${fmtShort(lap.total)}</span>
+        ${badge || '<span></span>'}
+      </li>`;
+    }).join('');
+  }
+
+  updateStats();
+  renderLaps();
+</script>
+</body>
+</html>
